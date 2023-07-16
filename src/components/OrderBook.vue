@@ -12,24 +12,24 @@
         <div class="sellBlock">
           <ul
             class="list"
-            v-for="([price, size], index) of top8_Asks"
+            v-for="([price, pair], index) of top8_Asks"
             :key="index"
           >
             <transition name="highlight" mode="out-in">
-              <li :key="price" class="priceText">{{ price }}</li>
+              <li :key="price" class="sellText priceText">{{ price }}</li>
             </transition>
             <transition name="highlight" mode="out-in">
-              <li :key="size" class="sizeText">{{ size }}</li>
+              <li :key="pair[0]" class="sizeText">{{ pair[0] }}</li>
             </transition>
             <transition name="highlight" mode="out-in">
-              <li :key="index" class="totalText">{{ index }}</li>
+              <li :key="pair[1]" class="totalText">{{ pair[1] }}</li>
             </transition>
           </ul>
         </div>
       </div>
     </section>
 
-    <!-- <button @click="start">start connect</button> -->
+    <button @click="startWebSocket">start connect</button>
     <button @click="subscribe">subscribe</button>
     <button @click="stop">stop</button>
     <!-- <h4>{{ prevSeqNum }}</h4>
@@ -60,8 +60,8 @@ export default {
       targetValue: 0,
       orderBookData: [],
       orderBookMap: {
-        asks: new Map(),
-        bids: new Map(),
+        asks: new Map(), // [price -> [size, total]]
+        bids: new Map(), // [price -> [size, total]]
       },
       top8_Asks: [],
       top8_Bids: [],
@@ -78,7 +78,7 @@ export default {
   computed: {},
 
   methods: {
-    start() {
+    startWebSocket() {
       // console.log(this.ws)
       this.ws = new WebSocket("wss://ws.btse.com/ws/oss/futures");
       console.log(this.ws);
@@ -97,17 +97,50 @@ export default {
             asks.sort((a, b) => b[0] - a[0]);
             bids.sort((a, b) => b[0] - a[0]);
             for (let i = 0; i < 50; i++) {
-              this.orderBookMap["asks"].set(asks[i][0], asks[i][1]);
-              this.orderBookMap["bids"].set(bids[i][0], bids[i][1]);
+              this.orderBookMap["asks"].set(asks[i][0], [asks[i][1], asks[i][1]]);
+              this.orderBookMap["bids"].set(bids[i][0], [bids[i][1], bids[i][1]]);
             }
             this.top8_Asks = [...this.orderBookMap["asks"]].slice(0, 8);
-            this.top8_Asks = [...this.orderBookMap["bids"]].slice(0, 8);
-          }
+            this.top8_Bids = [...this.orderBookMap["bids"]].slice(0, 8);
+            // console.log(this.top8_Asks)
+            this.top8_Asks.map((item) => {
+              item[0] = this.commaFormat(item[0]);
+              item[1][0] = this.commaFormat(item[1][0]);
+              item[1][1] = this.commaFormat(item[1][1]);
+            });
+            this.top8_Bids.map((item) => {
+              item[0] = this.commaFormat(item[0]);
+              item[1][0] = this.commaFormat(item[1][0]);
+              item[1][1] = this.commaFormat(item[1][1]);
+            });
+
+          } 
+          // else {
+          //   console.log(getData.asks);
+          //   const [asks, bids] = [getData.asks, getData.bids];
+          //   for(let i = 0; i < asks.length; i++){
+          //     if(asks[i][1] === 0){
+          //       this.orderBookMap["asks"].delete(asks[i][0]);
+          //     }
+          //     else{
+          //     }
+          //   }
+          // }
         }
       };
       this.ws.onclose = () => {
         console.log("is Closed");
       };
+    },
+    commaFormat(n) {
+      return n
+        .toString()
+        .replace(
+          /^(-?\d+?)((?:\d{3})+)(?=\.\d+$|$)/,
+          function (all, pre, groupOf3Digital) {
+            return pre + groupOf3Digital.replace(/\d{3}/g, ",$&");
+          }
+        );
     },
     subscribe() {
       if (this.ws) {
@@ -122,7 +155,13 @@ export default {
   },
 
   created() {
-    this.start();
+    this.top8_Asks = Array(8)
+      .fill()
+      .map(() => [0, 0]);
+    this.top8_Bids = Array(8)
+      .fill()
+      .map(() => [0, 0]);
+    this.startWebSocket();
   },
 
   watch: {},
@@ -156,7 +195,7 @@ h1, h2, h3, h4, h5, li
     border: 1px solid green
   +size(90%, 400px)
   margin: 0 auto
-  max-width: 597px
+  max-width: 500px
 section
   background-color: #131B29
   h2
