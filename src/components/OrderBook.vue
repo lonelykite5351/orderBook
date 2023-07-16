@@ -12,17 +12,17 @@
         <div class="sellBlock">
           <ul
             class="list"
-            v-for="([price, pair], index) of top8_Asks"
+            v-for="([price, [size, total]], index) of top8_Asks"
             :key="index"
           >
             <transition name="highlight" mode="out-in">
-              <li :key="price" class="sellText priceText">{{ price }}</li>
+              <li :key="price" class="sellText priceText">{{ commaFormat(price) }}</li>
             </transition>
             <transition name="highlight" mode="out-in">
-              <li :key="pair[0]" class="sizeText">{{ pair[0] }}</li>
+              <li :key="size" class="sizeText">{{ commaFormat(size) }}</li>
             </transition>
             <transition name="highlight" mode="out-in">
-              <li :key="pair[1]" class="totalText">{{ pair[1] }}</li>
+              <li :key="total" class="totalText">{{ commaFormat(total) }}</li>
             </transition>
           </ul>
         </div>
@@ -97,24 +97,29 @@ export default {
             asks.sort((a, b) => b[0] - a[0]);
             bids.sort((a, b) => b[0] - a[0]);
             for (let i = 0; i < 50; i++) {
-              this.orderBookMap["asks"].set(asks[i][0], [asks[i][1], asks[i][1]]);
-              this.orderBookMap["bids"].set(bids[i][0], [bids[i][1], bids[i][1]]);
+              this.orderBookMap["asks"].set(asks[i][0], [
+                asks[i][1],
+                asks[i][1],
+              ]);
+              this.orderBookMap["bids"].set(bids[i][0], [
+                bids[i][1],
+                bids[i][1],
+              ]);
             }
             this.top8_Asks = [...this.orderBookMap["asks"]].slice(0, 8);
             this.top8_Bids = [...this.orderBookMap["bids"]].slice(0, 8);
             // console.log(this.top8_Asks)
-            this.top8_Asks.map((item) => {
-              item[0] = this.commaFormat(item[0]);
-              item[1][0] = this.commaFormat(item[1][0]);
-              item[1][1] = this.commaFormat(item[1][1]);
-            });
-            this.top8_Bids.map((item) => {
-              item[0] = this.commaFormat(item[0]);
-              item[1][0] = this.commaFormat(item[1][0]);
-              item[1][1] = this.commaFormat(item[1][1]);
-            });
-
-          } 
+            // this.top8_Asks.map((item) => {
+            //   item[0] = this.commaFormat(item[0]);
+            //   item[1][0] = this.commaFormat(item[1][0]);
+            //   item[1][1] = this.commaFormat(item[1][1]);
+            // });
+            // this.top8_Bids.map((item) => {
+            //   item[0] = this.commaFormat(item[0]);
+            //   item[1][0] = this.commaFormat(item[1][0]);
+            //   item[1][1] = this.commaFormat(item[1][1]);
+            // });
+          }
           // else {
           //   console.log(getData.asks);
           //   const [asks, bids] = [getData.asks, getData.bids];
@@ -157,10 +162,10 @@ export default {
   created() {
     this.top8_Asks = Array(8)
       .fill()
-      .map(() => [0, 0]);
+      .map(() => [0, [0, 0]]);
     this.top8_Bids = Array(8)
       .fill()
-      .map(() => [0, 0]);
+      .map(() => [0, [0, 0]]);
     this.startWebSocket();
   },
 
@@ -181,7 +186,7 @@ export default {
   color: #8698aa
 
 .priceText
-  text-align: left
+  text-align: center
 .sizeText
   text-align: right
 .totalText
