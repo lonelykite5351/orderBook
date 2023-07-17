@@ -16,7 +16,9 @@
             :key="index"
           >
             <transition name="highlight" mode="out-in">
-              <li :key="price" class="sellText priceText">{{ commaFormat(price) }}</li>
+              <li :key="price" class="sellText priceText">
+                {{ commaFormat(price) }}
+              </li>
             </transition>
             <transition name="highlight" mode="out-in">
               <li :key="size" class="sizeText">{{ commaFormat(size) }}</li>
@@ -29,9 +31,12 @@
       </div>
     </section>
 
-    <button @click="startWebSocket">start connect</button>
-    <button @click="subscribe">subscribe</button>
-    <button @click="stop">stop</button>
+    <button @click="startWebSocket1">start connect 1</button>
+    <button @click="startWebSocket2">start connect 2</button>
+    <button @click="subscribe(ws1, subscriptionOrderBook)">subscribe 1</button>
+    <button @click="stop(ws1, unsubscriptionOrderBook)">stop 1</button>
+    <button @click="subscribe(ws2, subscriptionPriceUpdate)">subscribe 2</button>
+    <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button>
     <!-- <h4>{{ prevSeqNum }}</h4>
     <h4>{{ seqNum }}</h4> -->
 
@@ -54,7 +59,8 @@ export default {
   name: "OrderBook",
   data() {
     return {
-      ws: null,
+      ws1: new WebSocket("wss://ws.btse.com/ws/oss/futures"),
+      ws2: new WebSocket("wss://ws.btse.com/ws/futures"),
       // seqNum: 0,
       // prevSeqNum: 0,
       targetValue: 0,
@@ -73,21 +79,37 @@ export default {
         op: "unsubscribe",
         args: ["update:BTC-PERP"],
       },
+      subscriptionPriceUpdate: {
+        op: "subscribe",
+        args: ["tradeHistoryApi:BTCPFC"],
+      },
+      unsubscriptionPriceUpdate: {
+        op: "unsubscribe",
+        args: ["tradeHistoryApi:BTCPFC"],
+      },
     };
   },
   computed: {},
 
   methods: {
-    startWebSocket() {
-      // console.log(this.ws)
-      this.ws = new WebSocket("wss://ws.btse.com/ws/oss/futures");
-      console.log(this.ws);
-      this.ws.onopen = () => {};
-      this.ws.onmessage = (event) => {
+    commaFormat(n) {
+      return n
+        .toString()
+        .replace(
+          /^(-?\d+?)((?:\d{3})+)(?=\.\d+$|$)/,
+          function (all, pre, groupOf3Digital) {
+            return pre + groupOf3Digital.replace(/\d{3}/g, ",$&");
+          }
+        );
+    },
+    startWebSocket1() {
+      console.log(this.ws1);
+      this.ws1.onopen = () => {};
+      this.ws1.onmessage = (event) => {
         const getData = JSON.parse(event.data).data;
 
         if (getData) {
-          // console.log(getData)
+          console.log(getData);
           this.orderBookData.push(getData);
           if (getData.type === "snapshot") {
             this.orderBookMap.asks.clear();
@@ -133,29 +155,31 @@ export default {
           // }
         }
       };
-      this.ws.onclose = () => {
+      this.ws1.onclose = () => {
         console.log("is Closed");
       };
     },
-    commaFormat(n) {
-      return n
-        .toString()
-        .replace(
-          /^(-?\d+?)((?:\d{3})+)(?=\.\d+$|$)/,
-          function (all, pre, groupOf3Digital) {
-            return pre + groupOf3Digital.replace(/\d{3}/g, ",$&");
-          }
-        );
-    },
-    subscribe() {
-      if (this.ws) {
-        this.ws.send(JSON.stringify(this.subscriptionOrderBook));
+    subscribe(ws, message) {
+      if (ws) {
+        ws.send(JSON.stringify(message));
       }
     },
-    stop() {
-      if (this.ws) {
-        this.ws.send(JSON.stringify(this.unsubscriptionOrderBook));
+    stop(ws, message) {
+      if (ws) {
+        ws.send(JSON.stringify(message));
       }
+    },
+
+    startWebSocket2() {
+      console.log(this.ws2);
+      this.ws2.onopen = () => {};
+      this.ws2.onmessage = (event) => {
+        const getData = JSON.parse(event.data).data;
+        console.log(getData);
+      };
+      this.ws2.onclose = () => {
+        console.log("is Closed");
+      };
     },
   },
 
@@ -166,7 +190,8 @@ export default {
     this.top8_Bids = Array(8)
       .fill()
       .map(() => [0, [0, 0]]);
-    this.startWebSocket();
+    this.startWebSocket1();
+    this.startWebSocket2();
   },
 
   watch: {},
