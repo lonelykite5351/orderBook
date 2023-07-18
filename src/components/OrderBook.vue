@@ -9,11 +9,11 @@
           <li class="listTitleText sizeText">Size</li>
           <li class="listTitleText totalText">Total</li>
         </ul>
-        <div class="sellBlock">
+        <div class="block">
           <TransitionGroup name="highlightSell" mode="out-in">
             <ul
               class="list"
-              v-for="([price, [size, total]]) of top8_Asks"
+              v-for="[price, [size, total]] of top8_Asks"
               :key="price"
             >
               <transition name="" mode="out-in">
@@ -30,6 +30,28 @@
             </ul>
           </TransitionGroup>
         </div>
+
+        <!-- <div class="block">
+          <TransitionGroup name="highlightSell" mode="out-in">
+            <ul
+              class="list"
+              v-for="[price, [size, total]] of top8_Bids"
+              :key="price"
+            >
+              <transition name="" mode="out-in">
+                <li :key="price" class="sellText priceText">
+                  {{ commaFormat(price) }}
+                </li>
+              </transition>
+              <transition name="" mode="out-in">
+                <li :key="size" class="sizeText">{{ commaFormat(size) }}</li>
+              </transition>
+              <transition name="" mode="out-in">
+                <li :key="total" class="totalText">{{ commaFormat(total) }}</li>
+              </transition>
+            </ul>
+          </TransitionGroup>
+        </div> -->
       </div>
     </section>
 
@@ -43,7 +65,7 @@
     <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button>
     <!-- <h4>{{ prevSeqNum }}</h4>
     <h4>{{ seqNum }}</h4> -->
-    
+
     <div>
       <transition name="highlight" mode="out-in">
         <div :key="targetValue">{{ targetValue }}</div>
@@ -91,18 +113,15 @@ export default {
 
   methods: {
     commaFormat(n) {
-      return n
-        .toString()
-        .replace(
-          /^(-?\d+?)((?:\d{3})+)(?=\.\d+$|$)/,
-          function (all, pre, groupOf3Digital) {
-            return pre + groupOf3Digital.replace(/\d{3}/g, ",$&");
-          }
-        );
+      return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     },
-    update_Top8(){
-      const top8_Asks = [...this.orderBookMap["asks"]].slice(0, 8);
-      const top8_Bids = [...this.orderBookMap["bids"]].slice(0, 8);
+    update_Top8() {
+      const top8_Asks = [...this.orderBookMap["asks"]]
+        .sort((a, b) => b[0] - a[0])
+        .slice(0, 8);
+      const top8_Bids = [...this.orderBookMap["bids"]]
+        .sort((a, b) => b[0] - a[0])
+        .slice(0, 8);
       for (let i = 0; i < 8; i++) {
         this.$set(this.top8_Asks, i, top8_Asks[i]);
         this.$set(this.top8_Bids, i, top8_Bids[i]);
@@ -113,43 +132,42 @@ export default {
       this.ws1.onopen = () => {};
       this.ws1.onmessage = (event) => {
         const getData = JSON.parse(event.data).data;
-
-        if (getData) {
-          // console.log(getData);
-          if (getData.type === "snapshot") {
-            this.orderBookMap.asks.clear();
-            this.orderBookMap.bids.clear();
-            // console.log(getData)
-            const [asks, bids] = [getData.asks, getData.bids];
-            asks.sort((a, b) => b[0] - a[0]);
-            bids.sort((a, b) => b[0] - a[0]);
-            for (let i = 0; i < 50; i++) {
-              this.orderBookMap["asks"].set(asks[i][0], [
-                asks[i][1],
-                asks[i][1],
-              ]);
-              this.orderBookMap["bids"].set(bids[i][0], [
-                bids[i][1],
-                bids[i][1],
-              ]);
-            }
-            this.update_Top8();
+        // console.log(getData);
+        if (getData === undefined) {
+          return;
+        }
+        if (getData.type === "snapshot") {
+          this.orderBookMap.asks.clear();
+          this.orderBookMap.bids.clear();
+          // console.log(getData)
+          const [asks, bids] = [getData.asks, getData.bids];
+          // asks.sort((a, b) => b[0] - a[0]);
+          // bids.sort((a, b) => b[0] - a[0]);
+          for (let i = 0; i < 50; i++) {
+            const [priceAsks, sizeAsks] = [asks[i][0] * 1, asks[i][1] * 1];
+            const [priceBids, sizeBids] = [bids[i][0] * 1, bids[i][1] * 1];
+            this.orderBookMap["asks"].set(priceAsks, [sizeAsks, sizeAsks]);
+            this.orderBookMap["bids"].set(priceBids, [sizeBids, sizeBids]);
           }
-          // else {
-          //   console.log(getData.asks);
-          //   for(const [price, size] of getData.asks){
-          //     if(size !== 0){
-          //       let [prevSize, prevTotal] = this.orderBookMap["asks"].get(price);
-          //       console.log(prevSize)
-          //       this.orderBookMap["asks"].get(price)[0] = size;
-          //       this.orderBookMap["asks"].get(price)[1] = prevTotal + size
-          //     }
-          //     else{
-          //       this.orderBookMap["asks"].delete(price);
-          //     }
-          //   }
-
-          // }
+          this.update_Top8();
+        } else if (getData.type === "delta") {
+          // console.log(getData.asks);
+          for (let [price, size] of getData.asks) {
+            price *= 1;
+            size *= 1;
+            if (size !== 0) {
+              if (!this.orderBookMap["asks"].has(price)) {
+                this.orderBookMap["asks"].set(price, [0, 0]);
+              }
+              let [prevSize, prevTotal] = this.orderBookMap["asks"].get(price);
+              console.log(prevSize);
+              this.orderBookMap["asks"].get(price)[0] = size;
+              this.orderBookMap["asks"].get(price)[1] = prevTotal + size;
+            } else {
+              this.orderBookMap["asks"].delete(price);
+            }
+          }
+          this.update_Top8();
         }
       };
       this.ws1.onclose = () => {
@@ -194,15 +212,7 @@ export default {
     this.startWebSocket2();
   },
 
-  watch: {
-    top8_Asks: {
-      handler(){
-        console.log("watch")
-      },
-      immediate:true,
-      // deep:true
-    }
-  },
+  watch: {},
 };
 </script>
 
@@ -246,10 +256,16 @@ section
   li
     flex: 1
 .list
+  +size(100%, auto)
   li
     padding: 5px 0
 
-.titleList, .sellBlock
+.block
+  height: 270px
+  overflow: hidden
+  padding: 0 5%
+
+.titleList
   padding: 8px 5%
 
 .highlightSell-enter-active
