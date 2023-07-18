@@ -10,23 +10,25 @@
           <li class="listTitleText totalText">Total</li>
         </ul>
         <div class="sellBlock">
-          <ul
-            class="list"
-            v-for="([price, [size, total]], index) of top8_Asks"
-            :key="index"
-          >
-            <transition name="highlight" mode="out-in">
-              <li :key="price" class="sellText priceText">
-                {{ commaFormat(price) }}
-              </li>
-            </transition>
-            <transition name="highlight" mode="out-in">
-              <li :key="size" class="sizeText">{{ commaFormat(size) }}</li>
-            </transition>
-            <transition name="highlight" mode="out-in">
-              <li :key="total" class="totalText">{{ commaFormat(total) }}</li>
-            </transition>
-          </ul>
+          <TransitionGroup name="highlightSell" mode="out-in">
+            <ul
+              class="list"
+              v-for="([price, [size, total]]) of top8_Asks"
+              :key="price"
+            >
+              <transition name="" mode="out-in">
+                <li :key="price" class="sellText priceText">
+                  {{ commaFormat(price) }}
+                </li>
+              </transition>
+              <transition name="" mode="out-in">
+                <li :key="size" class="sizeText">{{ commaFormat(size) }}</li>
+              </transition>
+              <transition name="" mode="out-in">
+                <li :key="total" class="totalText">{{ commaFormat(total) }}</li>
+              </transition>
+            </ul>
+          </TransitionGroup>
         </div>
       </div>
     </section>
@@ -35,16 +37,13 @@
     <button @click="startWebSocket2">start connect 2</button>
     <button @click="subscribe(ws1, subscriptionOrderBook)">subscribe 1</button>
     <button @click="stop(ws1, unsubscriptionOrderBook)">stop 1</button>
-    <button @click="subscribe(ws2, subscriptionPriceUpdate)">subscribe 2</button>
+    <button @click="subscribe(ws2, subscriptionPriceUpdate)">
+      subscribe 2
+    </button>
     <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button>
     <!-- <h4>{{ prevSeqNum }}</h4>
     <h4>{{ seqNum }}</h4> -->
-
-    <div v-for="(item, index) of orderBookData" :key="index">
-      <h5>type:{{ item.type }}</h5>
-      <p>asks:{{ item.asks }}</p>
-      <p>bids:{{ item.bids }}</p>
-    </div>
+    
     <div>
       <transition name="highlight" mode="out-in">
         <div :key="targetValue">{{ targetValue }}</div>
@@ -64,7 +63,6 @@ export default {
       // seqNum: 0,
       // prevSeqNum: 0,
       targetValue: 0,
-      orderBookData: [],
       orderBookMap: {
         asks: new Map(), // [price -> [size, total]]
         bids: new Map(), // [price -> [size, total]]
@@ -102,6 +100,14 @@ export default {
           }
         );
     },
+    update_Top8(){
+      const top8_Asks = [...this.orderBookMap["asks"]].slice(0, 8);
+      const top8_Bids = [...this.orderBookMap["bids"]].slice(0, 8);
+      for (let i = 0; i < 8; i++) {
+        this.$set(this.top8_Asks, i, top8_Asks[i]);
+        this.$set(this.top8_Bids, i, top8_Bids[i]);
+      }
+    },
     startWebSocket1() {
       console.log(this.ws1);
       this.ws1.onopen = () => {};
@@ -109,8 +115,7 @@ export default {
         const getData = JSON.parse(event.data).data;
 
         if (getData) {
-          console.log(getData);
-          this.orderBookData.push(getData);
+          // console.log(getData);
           if (getData.type === "snapshot") {
             this.orderBookMap.asks.clear();
             this.orderBookMap.bids.clear();
@@ -128,30 +133,22 @@ export default {
                 bids[i][1],
               ]);
             }
-            this.top8_Asks = [...this.orderBookMap["asks"]].slice(0, 8);
-            this.top8_Bids = [...this.orderBookMap["bids"]].slice(0, 8);
-            // console.log(this.top8_Asks)
-            // this.top8_Asks.map((item) => {
-            //   item[0] = this.commaFormat(item[0]);
-            //   item[1][0] = this.commaFormat(item[1][0]);
-            //   item[1][1] = this.commaFormat(item[1][1]);
-            // });
-            // this.top8_Bids.map((item) => {
-            //   item[0] = this.commaFormat(item[0]);
-            //   item[1][0] = this.commaFormat(item[1][0]);
-            //   item[1][1] = this.commaFormat(item[1][1]);
-            // });
+            this.update_Top8();
           }
           // else {
           //   console.log(getData.asks);
-          //   const [asks, bids] = [getData.asks, getData.bids];
-          //   for(let i = 0; i < asks.length; i++){
-          //     if(asks[i][1] === 0){
-          //       this.orderBookMap["asks"].delete(asks[i][0]);
+          //   for(const [price, size] of getData.asks){
+          //     if(size !== 0){
+          //       let [prevSize, prevTotal] = this.orderBookMap["asks"].get(price);
+          //       console.log(prevSize)
+          //       this.orderBookMap["asks"].get(price)[0] = size;
+          //       this.orderBookMap["asks"].get(price)[1] = prevTotal + size
           //     }
           //     else{
+          //       this.orderBookMap["asks"].delete(price);
           //     }
           //   }
+
           // }
         }
       };
@@ -174,8 +171,11 @@ export default {
       console.log(this.ws2);
       this.ws2.onopen = () => {};
       this.ws2.onmessage = (event) => {
+        // console.log(event.data)
         const getData = JSON.parse(event.data).data;
-        console.log(getData);
+        if (getData !== undefined) {
+          console.log(getData);
+        }
       };
       this.ws2.onclose = () => {
         console.log("is Closed");
@@ -186,15 +186,23 @@ export default {
   created() {
     this.top8_Asks = Array(8)
       .fill()
-      .map(() => [0, [0, 0]]);
+      .map((_, i) => [i, [0, 0]]);
     this.top8_Bids = Array(8)
       .fill()
-      .map(() => [0, [0, 0]]);
+      .map((_, i) => [i, [0, 0]]);
     this.startWebSocket1();
     this.startWebSocket2();
   },
 
-  watch: {},
+  watch: {
+    top8_Asks: {
+      handler(){
+        console.log("watch")
+      },
+      immediate:true,
+      // deep:true
+    }
+  },
 };
 </script>
 
@@ -244,12 +252,13 @@ section
 .titleList, .sellBlock
   padding: 8px 5%
 
-.highlight-enter-active
-  animation: highlight-Animation 0.5s
+.highlightSell-enter-active
+  animation: highlight-Animation .7s
+  animation-timing-function: ease-in-out
 
 @keyframes highlight-Animation
   0%
-    background-color: yellow
+    background-color: rgba(255, 91, 90, 0.5)
   100%
-    background-color: white
+    background-color: transparent
 </style>
