@@ -13,20 +13,22 @@
           <TransitionGroup name="highlightSell" mode="out-in">
             <ul
               class="list"
-              v-for="[price, [size, total]] of top8_Asks"
+              v-for="([price, [size, total]], i) of top8_Asks"
               :key="price"
             >
-              <transition name="" mode="out-in">
-                <li :key="price" class="sellText priceText">
-                  {{ commaFormat(price) }}
-                </li>
-              </transition>
-              <transition name="" mode="out-in">
-                <li :key="size" class="sizeText">{{ commaFormat(size) }}</li>
-              </transition>
-              <transition name="" mode="out-in">
-                <li :key="total" class="totalText">{{ commaFormat(total) }}</li>
-              </transition>
+              <!-- <transition name="" mode="out-in"> -->
+              <li class="sellText priceText">
+                {{ commaFormat(price) }}
+              </li>
+              <!-- </transition> -->
+              <!-- <transition name="" mode="out-in"> -->
+              <li class="sizeText" :class="{sell_AnimateClass: asks_Size_Animation_Active[i][0], buy_AnimateClass: asks_Size_Animation_Active[i][1]}">
+                {{ commaFormat(size) }}
+              </li>
+              <!-- </transition> -->
+              <!-- <transition name="" mode="out-in"> -->
+              <li class="totalText">{{ commaFormat(total) }}</li>
+              <!-- </transition> -->
             </ul>
           </TransitionGroup>
         </div>
@@ -39,7 +41,7 @@
               :key="price"
             >
               <transition name="" mode="out-in">
-                <li :key="price" class="sellText priceText">
+                <li :key="price" class="buyText priceText">
                   {{ commaFormat(price) }}
                 </li>
               </transition>
@@ -89,8 +91,12 @@ export default {
         asks: new Map(), // [price -> [size, total]]
         bids: new Map(), // [price -> [size, total]]
       },
-      top8_Asks: [],
-      top8_Bids: [],
+      top8_Asks: Array(8)
+        .fill()
+        .map((_, i) => [i, [0, 0]]), // [i] = [price, [size, total]]
+      top8_Bids: Array(8)
+        .fill()
+        .map((_, i) => [i, [0, 0]]), // [i] = [price, [size, total]]
       subscriptionOrderBook: {
         op: "subscribe",
         args: ["update:BTC-PERP"],
@@ -107,6 +113,11 @@ export default {
         op: "unsubscribe",
         args: ["tradeHistoryApi:BTCPFC"],
       },
+
+      // [i] = [sell animation active, buy animation active]
+      asks_Size_Animation_Active: Array(8)
+        .fill()
+        .map(() => [false, false]),
     };
   },
   computed: {},
@@ -123,9 +134,10 @@ export default {
         .sort((a, b) => b[0] - a[0])
         .slice(0, 8);
       for (let i = 0; i < 8; i++) {
-        this.$set(this.top8_Asks, i, top8_Asks[i]);
-        this.$set(this.top8_Bids, i, top8_Bids[i]);
+        this.top8_Asks[i] = top8_Asks[i];
+        this.top8_Bids[i] = top8_Bids[i];
       }
+      this.$forceUpdate();
     },
     startWebSocket1() {
       console.log(this.ws1);
@@ -151,7 +163,7 @@ export default {
           }
           this.update_Top8();
         } else if (getData.type === "delta") {
-          // console.log(getData.asks);
+          // update asks price
           for (let [price, size] of getData.asks) {
             price *= 1;
             size *= 1;
@@ -159,14 +171,42 @@ export default {
               if (!this.orderBookMap["asks"].has(price)) {
                 this.orderBookMap["asks"].set(price, [0, 0]);
               }
-              let [prevSize, prevTotal] = this.orderBookMap["asks"].get(price);
-              console.log(prevSize);
+              const prevTotal = this.orderBookMap["asks"].get(price)[1];
+              // console.log(prevSize);
+              
+              // current price is in top 8 list, update size, active animation
+              for(let i = 0; i < 8; i++){
+                if(this.top8_Asks[i][0] === price){
+                  const prevSize = this.top8_Asks[i][1][0]; // [i] = [price, [size, total]]
+                  console.log([price, prevSize, size]);
+                  // sell
+                  if(size < prevSize){
+                    this.asks_Size_Animation_Active[i][0] = true;
+                  }
+                  // buy
+                  else if (size > prevSize){
+                    this.asks_Size_Animation_Active[i][1] = true;
+                  }
+                  // remove animation class binding
+                  // setTimeout(() => {
+                  //   this.asks_Size_Animation_Active[i] = [false, false];
+                  // }, 700);
+
+                  this.top8_Asks[i][1][0] = size;
+                  this.$forceUpdate();
+
+                  break;
+                }
+              }
+
+
               this.orderBookMap["asks"].get(price)[0] = size;
               this.orderBookMap["asks"].get(price)[1] = prevTotal + size;
             } else {
               this.orderBookMap["asks"].delete(price);
             }
           }
+
           this.update_Top8();
         }
       };
@@ -202,12 +242,12 @@ export default {
   },
 
   created() {
-    this.top8_Asks = Array(8)
-      .fill()
-      .map((_, i) => [i, [0, 0]]);
-    this.top8_Bids = Array(8)
-      .fill()
-      .map((_, i) => [i, [0, 0]]);
+    // this.top8_Asks = Array(8)
+    //   .fill()
+    //   .map((_, i) => [i, [0, 0]]);
+    // this.top8_Bids = Array(8)
+    //   .fill()
+    //   .map((_, i) => [i, [0, 0]]);
     this.startWebSocket1();
     this.startWebSocket2();
   },
@@ -229,7 +269,7 @@ export default {
   color: #8698aa
 
 .priceText
-  text-align: center
+  text-align: left
 .sizeText
   text-align: right
 .totalText
@@ -240,7 +280,7 @@ h1, h2, h3, h4, h5, li
 
 #OrderBook
   *
-    border: 1px solid green
+    // border: 1px solid green
   +size(90%, 400px)
   margin: 0 auto
   max-width: 500px
@@ -261,20 +301,34 @@ section
     padding: 5px 0
 
 .block
-  height: 270px
-  overflow: hidden
+  height: 250px
   padding: 0 5%
 
 .titleList
   padding: 8px 5%
 
 .highlightSell-enter-active
-  animation: highlight-Animation .7s
+  animation: highlightSell-Animation .7s
   animation-timing-function: ease-in-out
 
-@keyframes highlight-Animation
+.sell_AnimateClass
+  animation: highlightSell-Animation .7s
+  animation-timing-function: ease-in-out
+  background-color: rgba(255, 91, 90, 0.5)
+.buy_AnimateClass
+  animation: highlightBuy-Animation .7s
+  animation-timing-function: ease-in-out
+  background-color: rgba(0, 177, 93, 0.5)
+
+@keyframes highlightSell-Animation
   0%
     background-color: rgba(255, 91, 90, 0.5)
+  100%
+    background-color: transparent
+
+@keyframes highlightBuy-Animation
+  0%
+    background-color: rgba(0, 177, 93, 0.5)
   100%
     background-color: transparent
 </style>
