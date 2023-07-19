@@ -9,6 +9,8 @@
           <li class="listTitleText sizeText">Size</li>
           <li class="listTitleText totalText">Total</li>
         </ul>
+
+        <!-- sell price block -->
         <div class="block sellBlock">
           <TransitionGroup name="highlightSell" mode="out-in">
             <ul
@@ -44,6 +46,7 @@
           </TransitionGroup>
         </div>
 
+        <!-- buy price block -->
         <div class="block buyBlock">
           <TransitionGroup name="highlightBuy" mode="out-in">
             <ul
@@ -82,22 +85,20 @@
     </section>
 
     <button @click="startWebSocket1">startWebSocket1</button>
-    <!-- <button @click="startWebSocket2">startWebSocket2</button> -->
+    <button @click="startWebSocket2">startWebSocket2</button>
     <button @click="subscribe(ws1, subscriptionOrderBook)">subscribe 1</button>
     <button @click="stop(ws1, unsubscriptionOrderBook)">stop 1</button>
-    <!-- <button @click="subscribe(ws2, subscriptionPriceUpdate)">
+    <button @click="subscribe(ws2, subscriptionPriceUpdate)">
       subscribe 2
-    </button> -->
-    <!-- <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button> -->
-    <!-- <h4>{{ prevSeqNum }}</h4>
-    <h4>{{ seqNum }}</h4> -->
+    </button>
+    <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button>
 
-    <div>
+    <!-- <div>
       <transition name="highlight" mode="out-in">
         <div :key="targetValue">{{ targetValue }}</div>
       </transition>
       <button @click="targetValue += 1">Update Value</button>
-    </div>
+    </div> -->
   </div>
 </template>
 
@@ -108,10 +109,10 @@ export default {
     return {
       ws1: new WebSocket("wss://ws.btse.com/ws/oss/futures"),
       ws2: new WebSocket("wss://ws.btse.com/ws/futures"),
-      targetValue: 0,
+      // targetValue: 0,
       orderBookMap: {
-        asks: new Map(), // [price -> [size, total]]
-        bids: new Map(), // [price -> [size, total]]
+        asks: new Map(), // Map: { price -> [size, total] }
+        bids: new Map(), // Map: { price -> [size, total] }
       },
       top8_Asks: Array(8)
         .fill()
@@ -161,6 +162,8 @@ export default {
       }
       return max;
     },
+
+    // update current price in HashMap, sorted it first then slice top 8
     update_Top8() {
       const top8_Asks = [...this.orderBookMap["asks"]]
         .sort((a, b) => b[0] - a[0])
@@ -204,17 +207,18 @@ export default {
       }
     },
 
+    // if current price is on top 8, update size
     update_Size(i, price, size, prevTotal, targetListName) {
-      if(targetListName === "asks"){
+      if (targetListName === "asks") {
         const prevSize = this.top8_Asks[i][1][0]; // [i] = [price, [size, total]]
 
         // update size immediately
         this.$set(this.top8_Asks, i, [price, [size, prevTotal + size]]);
-        // sell
+        // sell Animation
         if (size < prevSize) {
           this.asks_Size_Animation_Active[i][0] = true;
         }
-        // buy
+        // buy Animation
         else if (size > prevSize) {
           this.asks_Size_Animation_Active[i][1] = true;
         }
@@ -223,8 +227,7 @@ export default {
         setTimeout(() => {
           this.asks_Size_Animation_Active[i] = [false, false];
         }, 700);
-      }
-      else if(targetListName === "bids"){
+      } else if (targetListName === "bids") {
         const prevSize = this.top8_Bids[i][1][0]; // [i] = [price, [size, total]]
 
         // update size immediately
@@ -243,7 +246,6 @@ export default {
           this.bids_Size_Animation_Active[i] = [false, false];
         }, 700);
       }
-
     },
     startWebSocket1() {
       console.log(this.ws1);
@@ -259,8 +261,6 @@ export default {
           this.orderBookMap.bids.clear();
           // console.log(getData)
           const [asks, bids] = [getData.asks, getData.bids];
-          // asks.sort((a, b) => b[0] - a[0]);
-          // bids.sort((a, b) => b[0] - a[0]);
           for (let i = 0; i < 50; i++) {
             const [priceAsks, sizeAsks] = [asks[i][0] * 1, asks[i][1] * 1];
             const [priceBids, sizeBids] = [bids[i][0] * 1, bids[i][1] * 1];
@@ -271,57 +271,6 @@ export default {
         } else if (getData.type === "delta") {
           this.update_Delta_Price("asks", getData.asks);
           this.update_Delta_Price("bids", getData.bids);
-          
-          // update asks price
-          /*
-          for (let [price, size] of getData.asks) {
-            price *= 1;
-            size *= 1;
-            if (size !== 0) {
-              if (!this.orderBookMap["asks"].has(price)) {
-                this.orderBookMap["asks"].set(price, [0, 0]);
-              }
-              const prevTotal = this.orderBookMap["asks"].get(price)[1];
-
-              // current price is in top 8 list, update size at first, then active animation
-              for (let i = 0; i < 8; i++) {
-                if (this.top8_Asks[i][0] === price) {
-                  const prevSize = this.top8_Asks[i][1][0]; // [i] = [price, [size, total]]
-                  // console.log([price, prevSize, size]);
-
-                  // update size immediately
-                  this.$set(this.top8_Asks, i, [
-                    price,
-                    [size, prevTotal + size],
-                  ]);
-                  // sell
-                  if (size < prevSize) {
-                    this.asks_Size_Animation_Active[i][0] = true;
-                  }
-                  // buy
-                  else if (size > prevSize) {
-                    this.asks_Size_Animation_Active[i][1] = true;
-                  }
-
-                  // remove animation's class binding after 700ms
-                  setTimeout(() => {
-                    this.asks_Size_Animation_Active[i] = [false, false];
-                  }, 700);
-
-                  this.$forceUpdate();
-                  break; // just only one, so break it.
-                }
-              }
-
-              // update Map
-              this.orderBookMap["asks"].get(price)[0] = size;
-              this.orderBookMap["asks"].get(price)[1] = prevTotal + size;
-            } else {
-              this.orderBookMap["asks"].delete(price);
-            }
-          }
-          */
-
           this.update_Top8();
         }
       };
