@@ -46,6 +46,27 @@
           </TransitionGroup>
         </div>
 
+        <!-- current BuyPrice -->
+        <div
+          class="current_BuyPrice_Block"
+          :class="{
+            sellColor: buyPrice_Animation_Active.sell,
+            buyColor: buyPrice_Animation_Active.buy,
+          }"
+        >
+          <div>
+            <h3>{{ commaFormat(currentBuyPrice) }}</h3>
+            <span
+              class="downArrow sellText"
+              v-show="buyPrice_Animation_Active.sell"
+              >⇩</span
+            >
+            <span class="upArrow buyText" v-show="buyPrice_Animation_Active.buy"
+              >⇧</span
+            >
+          </div>
+        </div>
+
         <!-- buy price block -->
         <div class="block buyBlock">
           <TransitionGroup name="highlightBuy" mode="out-in">
@@ -86,12 +107,14 @@
 
     <button @click="startWebSocket1">startWebSocket1</button>
     <button @click="startWebSocket2">startWebSocket2</button>
-    <button @click="subscribe(ws1, subscriptionOrderBook)">subscribe 1</button>
+    <!-- <button @click="subscribe(ws1, subscriptionOrderBook)">subscribe 1</button>
     <button @click="stop(ws1, unsubscriptionOrderBook)">stop 1</button>
     <button @click="subscribe(ws2, subscriptionPriceUpdate)">
       subscribe 2
     </button>
-    <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button>
+    <button @click="stop(ws2, unsubscriptionPriceUpdate)">stop 2</button> -->
+    <button @click="subscribeAll">Subscribe All</button>
+    <button @click="stopAll">Stop All</button>
 
     <!-- <div>
       <transition name="highlight" mode="out-in">
@@ -110,6 +133,7 @@ export default {
       ws1: new WebSocket("wss://ws.btse.com/ws/oss/futures"),
       ws2: new WebSocket("wss://ws.btse.com/ws/futures"),
       // targetValue: 0,
+      currentBuyPrice: 0,
       orderBookMap: {
         asks: new Map(), // Map: { price -> [size, total] }
         bids: new Map(), // Map: { price -> [size, total] }
@@ -144,6 +168,7 @@ export default {
       bids_Size_Animation_Active: Array(8)
         .fill()
         .map(() => [false, false]),
+      buyPrice_Animation_Active: { sell: false, buy: true },
     };
   },
   computed: {},
@@ -276,6 +301,7 @@ export default {
       };
       this.ws1.onclose = () => {
         console.log("is Closed 1");
+        // alert("WebSocket 1 is Closed");
       };
     },
     subscribe(ws, message) {
@@ -288,19 +314,37 @@ export default {
         ws.send(JSON.stringify(message));
       }
     },
-
+    subscribeAll(){
+      this.ws1.send(JSON.stringify(this.subscriptionOrderBook));
+      this.ws2.send(JSON.stringify(this.subscriptionPriceUpdate));
+    },
+    stopAll(){
+      this.ws1.send(JSON.stringify(this.unsubscriptionOrderBook));
+      this.ws2.send(JSON.stringify(this.unsubscriptionPriceUpdate));
+    },
     startWebSocket2() {
       console.log(this.ws2);
       this.ws2.onopen = () => {};
       this.ws2.onmessage = (event) => {
-        // console.log(event.data)
         const getData = JSON.parse(event.data).data;
+        // get first price in the array, compare with previous price
         if (getData !== undefined) {
-          console.log(getData);
+          const prevPrice = this.currentBuyPrice;
+          const currentPrice = getData[0].price;
+          this.currentBuyPrice = currentPrice;
+          // console.log([prevPrice, currentPrice]);
+          if (currentPrice >= prevPrice) {
+            this.buyPrice_Animation_Active.buy = true;
+            this.buyPrice_Animation_Active.sell = false;
+          } else {
+            this.buyPrice_Animation_Active.buy = false;
+            this.buyPrice_Animation_Active.sell = true;
+          }
         }
       };
       this.ws2.onclose = () => {
         console.log("is Closed 2");
+        // alert("WebSocket 2 is Closed");
       };
     },
   },
@@ -377,6 +421,22 @@ h1, h2, h3, h4, h5, li
   right: 0
   top: 0
   transition: .3s
+
+.current_BuyPrice_Block
+  display: flex
+  justify-content: center
+  align-items: center
+  padding: 8px 5%
+  &.sellColor
+    background-color: rgba(255, 91, 90, 0.5)
+  &.buyColor
+    background-color: rgba(0, 177, 93, 0.5)
+  h3
+    font-size: 24px
+    display: inline-block
+  span
+    font-size: 24px
+    margin-left: 10px
 
 .sellBlock .bar
   background-color: rgba(255, 90, 90, 0.12)
