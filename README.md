@@ -4,6 +4,8 @@
 - Vue.js (Vue2)
 - CSS (Sass)
 
+[Demo Link](http://demo5.nanya-plastics-mall.com.tw/)
+
 ## Project setup
 ```
 npm install
