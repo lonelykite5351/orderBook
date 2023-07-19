@@ -1,5 +1,9 @@
 # orderbook
 
+### Use
+- Vue.js (Vue2)
+- CSS (Sass)
+
 ## Project setup
 ```
 npm install
